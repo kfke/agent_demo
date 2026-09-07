@@ -22,12 +22,14 @@ warnings.filterwarnings("ignore")
 logging.getLogger("google_adk").setLevel(logging.ERROR)
 
 from google.adk.agents import LlmAgent
+from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from ndaguard.plugins import AUDIT, ContentScanPlugin, PolicyPlugin
+from ndaguard.plugins import AUDIT, ContentScanPlugin, PolicyPlugin, _INJECTION
 from ndaguard.scripted_llm import ScriptedLlm
 from ndaguard.tools import ALL_TOOLS
+from ndaguard.policy import PolicyEngine
 
 APP = "nda_guard"
 DEFAULT_LIVE_MODEL = os.environ.get("OPENAI_MODEL", "openai/gpt-4.1-mini")
@@ -100,17 +102,103 @@ def build_model(model_name: str, script: list[dict]) -> object:
     return LiteLlm(model=model_name)
 
 
-def build_agent(model_name: str = "scripted", script: list[dict] | None = None) -> LlmAgent:
+def _ensure_demo_state(context: object) -> dict:
+    state = context.state
+    state.setdefault("role", "legal_counsel")
+    state.setdefault("tenant", "tenant-eu")
+    state.setdefault("approvals", [])
+    return state
+
+
+async def seed_demo_state(*, callback_context: object):
+    _ensure_demo_state(callback_context)
+    return None
+
+
+async def content_scan_before_model(*, callback_context: object, llm_request: object):
+    text = " ".join(
+        p.text or ""
+        for c in (llm_request.contents or [])
+        for p in (c.parts or [])
+    )
+    if _INJECTION.search(text):
+        AUDIT.append({"layer": "model", "hook": "before_model", "effect": "block",
+                      "detector": "injection_pattern"})
+        return LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="Blocked: the prompt contains an instruction override.")],
+            )
+        )
+    return None
+
+
+async def policy_before_tool(**kwargs):
+    tool = kwargs["tool"]
+    args = kwargs.get("args") or kwargs.get("tool_args") or {}
+    tool_context = kwargs["tool_context"]
+    state = _ensure_demo_state(tool_context)
+    engine = PolicyEngine()
+    decision = engine.evaluate(
+        role=state.get("role", "anonymous"),
+        tool_name=tool.name,
+        args=args,
+        session={"tenant": state.get("tenant")},
+    )
+    AUDIT.append({"layer": "orchestration", "hook": "before_tool", "tool": tool.name,
+                  "role": state.get("role"), "effect": decision.effect,
+                  "rule": decision.rule_id, "blast_radius": decision.blast_radius,
+                  "policy_version": engine.version})
+    if decision.effect == "deny":
+        return {"error": "policy_denied", "rule": decision.rule_id,
+                "reason": decision.reason}
+    if decision.effect == "needs_approval":
+        if args.get("doc_id") in state.get("approvals", []):
+            return None
+        return {"error": "approval_required", "rule": decision.rule_id,
+                "reason": decision.reason}
+    return None
+
+
+async def content_scan_after_tool(**kwargs):
+    tool = kwargs["tool"]
+    result = kwargs.get("result") or kwargs.get("tool_response") or kwargs.get("response")
+    if result is None:
+        return None
+    if _INJECTION.search(str(result)):
+        AUDIT.append({"layer": "model", "hook": "after_tool", "effect": "redact",
+                      "tool": tool.name, "detector": "injection_pattern"})
+        return {**result, "text": "[content withheld: embedded instruction detected]"}
+    return None
+
+
+def build_agent(
+    model_name: str = "scripted",
+    script: list[dict] | None = None,
+    attach_callbacks: bool = False,
+) -> LlmAgent:
+    kwargs = {}
+    if attach_callbacks:
+        kwargs = {
+            "before_agent_callback": seed_demo_state,
+            "before_model_callback": content_scan_before_model,
+            "before_tool_callback": policy_before_tool,
+            "after_tool_callback": content_scan_after_tool,
+        }
     return LlmAgent(
         name="nda_reviewer",
         model=build_model(model_name, script or []),
         instruction=(
-            "You review NDAs for the legal team. Use the available tools for "
-            "document search, clause reads, redlining, and signature requests. "
+            "You review NDAs for the legal team. This demo has synthetic "
+            "test documents in tenant-eu: NDA-0119 for Acme Corp and "
+            "NDA-0442 for Unknown Vendor GmbH. Always use search_ndas before "
+            "claiming no NDAs exist. For reading clauses, use repository "
+            "tenant-eu unless the user explicitly asks for another tenant. "
             "When policy blocks a tool call, explain the rule and do not invent "
             "a successful action."
         ),
         tools=ALL_TOOLS,
+        **kwargs,
     )
 
 

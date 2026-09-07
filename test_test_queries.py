@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import yaml
@@ -5,6 +6,7 @@ import yaml
 from ndaguard.plugins import _INJECTION
 from ndaguard.policy import PolicyEngine
 from ndaguard.tools import _CORPUS
+from demo import content_scan_after_tool, policy_before_tool, seed_demo_state
 
 CASES = yaml.safe_load(Path("test_queries.yaml").read_text())
 ENGINE = PolicyEngine()
@@ -96,3 +98,33 @@ def test_injected_document_is_marked_by_the_content_detector():
 def test_tenant_lie_still_fails_at_the_data_layer():
     doc = _CORPUS["NDA-9001"]
     assert doc["tenant"] != SESSION["tenant"]
+
+
+class DummyContext:
+    def __init__(self):
+        self.state = {}
+
+
+class DummyTool:
+    name = "read_clause"
+
+
+def test_web_callbacks_accept_adk_agent_keyword_shapes():
+    ctx = DummyContext()
+    asyncio.run(seed_demo_state(callback_context=ctx))
+    assert ctx.state["tenant"] == "tenant-eu"
+
+    decision = asyncio.run(policy_before_tool(
+        tool=DummyTool(),
+        args={"doc_id": "NDA-0119", "repository": "tenant-eu"},
+        tool_context=ctx,
+    ))
+    assert decision is None
+
+    redacted = asyncio.run(content_scan_after_tool(
+        tool=DummyTool(),
+        args={"doc_id": "NDA-0442", "repository": "tenant-eu"},
+        tool_context=ctx,
+        tool_response={"text": _CORPUS["NDA-0442"]["clause_7"]},
+    ))
+    assert redacted["text"] == "[content withheld: embedded instruction detected]"

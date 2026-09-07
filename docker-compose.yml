@@ -53,6 +53,4 @@ services:
       - memory://
       - --artifact_service_uri
       - memory://
-      - --extra_plugins
-      - ndaguard.plugins.ContentScanPlugin,ndaguard.plugins.PolicyPlugin
       - agents
