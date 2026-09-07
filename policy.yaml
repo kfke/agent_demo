@@ -1,0 +1,52 @@
+# =============================================================
+# policy.yaml  -  "policy as code"
+#
+# This file IS the guardrail. It is versioned in Git, reviewed in
+# a PR, and tested in CI (see test_policy.py).
+# No rule lives in a prompt. No rule lives in a wiki page.
+# =============================================================
+version: 4
+
+# ---- Who may call what -------------------------------------
+roles:
+  analyst:
+    tools: [search_ndas, read_clause]
+  legal_counsel:
+    tools: [search_ndas, read_clause, redline_clause, request_signature]
+
+# ---- What each tool can break ------------------------------
+# blast_radius drives how much ceremony the tool needs.
+tools:
+  search_ndas:
+    blast_radius: read
+  read_clause:
+    blast_radius: read
+  redline_clause:
+    blast_radius: write
+  request_signature:
+    blast_radius: outbound
+    requires_approval: true      # human must confirm
+  purge_document:
+    blast_radius: destructive
+    deny_always: true            # not reachable by any role
+
+# ---- Argument-level constraints ----------------------------
+# The model may ask for anything. These decide what is allowed.
+constraints:
+  - id: R-014
+    tool: request_signature
+    arg: counterparty_domain
+    allow_values: [acme-corp.com, globex.de]
+    reason: counterparty domain is not on the approved allowlist
+
+  - id: R-021
+    tool: read_clause
+    arg: repository
+    must_equal_session: tenant
+    reason: cross-tenant document access is not permitted
+
+  - id: R-033
+    tool: redline_clause
+    arg: clause_count
+    max_value: 5
+    reason: bulk redlining above 5 clauses requires a batch job, not an agent
