@@ -40,6 +40,43 @@ On Windows, set `PYTHONUTF8=1` if LiteLLM hits a cache decoding error.
 `reliability_demo.py` needs no ADK at all — the primitives are pure Python
 on purpose.
 
+
+## Docker
+
+Build once:
+
+```bash
+docker compose build
+```
+
+Run the deterministic ADK demo with no API key:
+
+```bash
+docker compose run --rm nda-guard
+```
+
+Run the test suite in the same container image:
+
+```bash
+docker compose run --rm tests
+```
+
+Run ADK with a live OpenAI model through LiteLLM:
+
+```bash
+# PowerShell
+$env:OPENAI_API_KEY = "sk-..."
+docker compose run --rm nda-guard-openai
+```
+
+You can also bypass Compose:
+
+```bash
+docker build -t kfke/agent-demo:local .
+docker run --rm kfke/agent-demo:local
+docker run --rm -e OPENAI_API_KEY kfke/agent-demo:local python demo.py --model openai/gpt-4.1-mini
+```
+
 ## What each file is
 
 | File | Layer | Nature |

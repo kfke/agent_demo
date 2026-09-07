@@ -1,0 +1,21 @@
+services:
+  nda-guard:
+    build: .
+    image: kfke/agent-demo:local
+    environment:
+      PYTHONUTF8: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: ["python", "demo.py"]
+
+  nda-guard-openai:
+    build: .
+    image: kfke/agent-demo:local
+    environment:
+      PYTHONUTF8: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: ["python", "demo.py", "--openai"]
+
+  tests:
+    build: .
+    image: kfke/agent-demo:local
+    command: ["python", "-m", "pytest", "test_policy.py", "test_reliability.py", "-q"]
