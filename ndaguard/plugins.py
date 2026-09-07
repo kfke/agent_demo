@@ -15,6 +15,7 @@ import json
 import re
 from typing import Any, Optional
 
+from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -117,6 +118,15 @@ class PolicyPlugin(BasePlugin):
     def __init__(self, engine: PolicyEngine | None = None) -> None:
         super().__init__(name="policy_gate")
         self.engine = engine or PolicyEngine()
+
+
+    async def before_agent_callback(
+        self, *, agent: BaseAgent, callback_context: CallbackContext
+    ) -> Optional[types.Content]:
+        callback_context.state.setdefault("role", "legal_counsel")
+        callback_context.state.setdefault("tenant", "tenant-eu")
+        callback_context.state.setdefault("approvals", [])
+        return None
 
     async def before_tool_callback(
         self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext

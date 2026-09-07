@@ -25,3 +25,34 @@ services:
     env_file:
       - .env
     command: ["python", "-m", "pytest", "test_policy.py", "test_reliability.py", "-q"]
+
+  adk-web:
+    build: .
+    image: kfke/agent-demo:local
+    env_file:
+      - .env
+    environment:
+      PYTHONUTF8: ${PYTHONUTF8:-1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-openai/gpt-4.1-mini}
+      OTEL_SERVICE_NAME: nda-guard-adk-web
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: ${OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT:-EVENT_ONLY}
+    ports:
+      - "127.0.0.1:8000:8000"
+    command:
+      - python
+      - -m
+      - google.adk.cli
+      - web
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --log_level
+      - DEBUG
+      - --session_service_uri
+      - memory://
+      - --artifact_service_uri
+      - memory://
+      - --extra_plugins
+      - ndaguard.plugins.ContentScanPlugin,ndaguard.plugins.PolicyPlugin
+      - agents
