@@ -46,6 +46,7 @@ on purpose.
 ## Environment
 
 Use `.env` for local secrets and model settings. It is ignored by Git.
+`demo.py` loads it automatically, and Docker Compose passes it into containers.
 Start from the committed template:
 
 ```bash
@@ -70,8 +71,10 @@ docker compose up adk-web
 ```
 
 Open <http://localhost:8000>, select `nda_guard`, and chat with the agent.
-The web service loads `.env`, uses `OPENAI_MODEL`, and applies the same
-`ContentScanPlugin` and `PolicyPlugin` guardrails through ADK's plugin system.
+The web service loads `.env`, uses `OPENAI_MODEL`, and imports the agent
+factory from `demo.py`, so browser chat and the batch demo exercise the same
+agent definition. It applies the same `ContentScanPlugin` and `PolicyPlugin`
+guardrails through ADK's plugin system.
 
 Useful prompts:
 

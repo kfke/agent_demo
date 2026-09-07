@@ -15,6 +15,9 @@ import logging
 import os
 import warnings
 
+from dotenv import load_dotenv
+
+load_dotenv()
 warnings.filterwarnings("ignore")
 logging.getLogger("google_adk").setLevel(logging.ERROR)
 
@@ -97,6 +100,27 @@ def build_model(model_name: str, script: list[dict]) -> object:
     return LiteLlm(model=model_name)
 
 
+def build_agent(model_name: str = "scripted", script: list[dict] | None = None) -> LlmAgent:
+    return LlmAgent(
+        name="nda_reviewer",
+        model=build_model(model_name, script or []),
+        instruction=(
+            "You review NDAs for the legal team. Use the available tools for "
+            "document search, clause reads, redlining, and signature requests. "
+            "When policy blocks a tool call, explain the rule and do not invent "
+            "a successful action."
+        ),
+        tools=ALL_TOOLS,
+    )
+
+
+def build_plugins(scan_enabled: bool = True, policy_enabled: bool = True) -> list[object]:
+    plugins = [ContentScanPlugin(enabled=scan_enabled)]
+    if policy_enabled:
+        plugins.append(PolicyPlugin())
+    return plugins
+
+
 async def run_one(
     sc: dict, scan_enabled: bool, policy_enabled: bool, model_name: str
 ) -> None:
@@ -106,18 +130,11 @@ async def run_one(
     print(f"  user   : {sc['prompt']}")
     print(f"  role   : {sc['role']}  tenant: {sc['tenant']}")
 
-    agent = LlmAgent(
-        name="nda_reviewer",
-        model=build_model(model_name, sc["script"]),
-        instruction="You review NDAs for the legal team.",
-        tools=ALL_TOOLS,
+    agent = build_agent(model_name=model_name, script=sc["script"])
+    runner = InMemoryRunner(
+        agent=agent, app_name=APP,
+        plugins=build_plugins(scan_enabled=scan_enabled, policy_enabled=policy_enabled),
     )
-
-    plugins = [ContentScanPlugin(enabled=scan_enabled)]
-    if policy_enabled:
-        plugins.append(PolicyPlugin())
-
-    runner = InMemoryRunner(agent=agent, app_name=APP, plugins=plugins)
 
     session = await runner.session_service.create_session(
         app_name=APP, user_id="u1",
