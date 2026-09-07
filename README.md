@@ -16,6 +16,7 @@ Start with `CLAUDE.md` for orientation.
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env         # then fill OPENAI_API_KEY for live OpenAI runs
 
 python demo.py               # deterministic scripted model, both layers on
 python demo.py --no-scan     # model layer off  -> policy still holds
@@ -31,8 +32,9 @@ python -m pytest -q          # 33 assertions, ~0.1s
 
 No API key is needed for the default scripted run. `ScriptedLlm` replaces
 the token generator, while the Runner, plugin dispatch and tool execution are
-the real ADK. For a live OpenAI run, set `OPENAI_API_KEY` and use
-`--openai` or `--model openai/<model-name>`. ADK's supported non-Gemini path
+the real ADK. For a live OpenAI run, set `OPENAI_API_KEY` in `.env` or your shell and use
+`--openai` or `--model openai/<model-name>`. `OPENAI_MODEL` controls the
+`--openai` default. ADK's supported non-Gemini path
 is `google.adk.models.lite_llm.LiteLlm`, so this repo uses LiteLLM rather
 than a custom `BaseLlm` adapter.
 
@@ -40,6 +42,23 @@ On Windows, set `PYTHONUTF8=1` if LiteLLM hits a cache decoding error.
 `reliability_demo.py` needs no ADK at all — the primitives are pure Python
 on purpose.
 
+
+## Environment
+
+Use `.env` for local secrets and model settings. It is ignored by Git.
+Start from the committed template:
+
+```bash
+cp .env.example .env
+```
+
+Set these values as needed:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=openai/gpt-4.1-mini
+PYTHONUTF8=1
+```
 
 ## Docker
 
@@ -64,8 +83,7 @@ docker compose run --rm tests
 Run ADK with a live OpenAI model through LiteLLM:
 
 ```bash
-# PowerShell
-$env:OPENAI_API_KEY = "sk-..."
+# Put OPENAI_API_KEY=sk-... in .env first.
 docker compose run --rm nda-guard-openai
 ```
 

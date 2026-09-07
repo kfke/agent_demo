@@ -27,7 +27,7 @@ from ndaguard.scripted_llm import ScriptedLlm
 from ndaguard.tools import ALL_TOOLS
 
 APP = "nda_guard"
-DEFAULT_LIVE_MODEL = "openai/gpt-4.1-mini"
+DEFAULT_LIVE_MODEL = os.environ.get("OPENAI_MODEL", "openai/gpt-4.1-mini")
 
 SCENARIOS = [
     dict(
@@ -84,7 +84,7 @@ def build_model(model_name: str, script: list[dict]) -> object:
     if model_name.startswith("openai/") and not os.environ.get("OPENAI_API_KEY"):
         raise SystemExit(
             "OPENAI_API_KEY is required for OpenAI models. "
-            "Example: $env:OPENAI_API_KEY='sk-...'; python demo.py --model openai/gpt-4.1-mini"
+            "Set it in .env or your shell, then run: python demo.py --openai"
         )
 
     try:
@@ -157,7 +157,7 @@ async def main() -> None:
     parser.add_argument(
         "--openai",
         action="store_true",
-        help=f"shortcut for --model {DEFAULT_LIVE_MODEL}",
+        help="shortcut for --model $OPENAI_MODEL, defaulting to openai/gpt-4.1-mini",
     )
     args = parser.parse_args()
 
