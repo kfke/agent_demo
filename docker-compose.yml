@@ -24,7 +24,7 @@ services:
     image: kfke/agent-demo:local
     env_file:
       - .env
-    command: ["python", "-m", "pytest", "test_policy.py", "test_reliability.py", "-q"]
+    command: ["python", "-m", "pytest", "test_policy.py", "test_reliability.py", "test_test_queries.py", "-q"]
 
   adk-web:
     build: .

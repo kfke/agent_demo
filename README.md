@@ -61,6 +61,17 @@ OPENAI_MODEL=openai/gpt-4.1-mini
 PYTHONUTF8=1
 ```
 
+## Test Prompts
+
+Use `test_queries.yaml` as the manual ADK Web test pack. It contains 20
+prompts, expected tools, expected policy effects, expected rule ids, and the
+risk each prompt is meant to exercise. The deterministic parts are asserted in
+`test_test_queries.py`, so the checklist does not drift away from policy.
+
+```bash
+python -m pytest test_test_queries.py -q
+```
+
 ## Interactive Chat
 
 For hands-on testing, use ADK Web. It gives you a browser chat UI plus
