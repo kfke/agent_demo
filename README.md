@@ -17,9 +17,11 @@ Start with `CLAUDE.md` for orientation.
 ```bash
 pip install -r requirements.txt
 
-python demo.py               # both layers on
+python demo.py               # deterministic scripted model, both layers on
 python demo.py --no-scan     # model layer off  -> policy still holds
 python demo.py --no-policy   # policy off       -> the scanner cannot save you
+python demo.py --openai      # real OpenAI model through ADK + LiteLLM
+python demo.py --model openai/gpt-4.1-mini
 
 python reliability_demo.py       # all 8 reliability scenarios
 python reliability_demo.py R2    # just one
@@ -27,8 +29,14 @@ python reliability_demo.py R2    # just one
 python -m pytest -q          # 33 assertions, ~0.1s
 ```
 
-No API key needed. `ScriptedLlm` replaces the token generator. The Runner,
-the plugin dispatch and the tool execution are the real ADK.
+No API key is needed for the default scripted run. `ScriptedLlm` replaces
+the token generator, while the Runner, plugin dispatch and tool execution are
+the real ADK. For a live OpenAI run, set `OPENAI_API_KEY` and use
+`--openai` or `--model openai/<model-name>`. ADK's supported non-Gemini path
+is `google.adk.models.lite_llm.LiteLlm`, so this repo uses LiteLLM rather
+than a custom `BaseLlm` adapter.
+
+On Windows, set `PYTHONUTF8=1` if LiteLLM hits a cache decoding error.
 `reliability_demo.py` needs no ADK at all — the primitives are pure Python
 on purpose.
 
@@ -125,7 +133,24 @@ Two things to know about that plugin. It hooks `before_model_callback` and
 `before_tool_callback`. And `block_on_screening_failure=True` means a Model
 Armor outage becomes an agent outage; set it deliberately, per workflow.
 
-To use real Gemini, swap the model and delete the script:
+To use a live OpenAI model through Google ADK, keep the agent and tools as-is
+and pass a LiteLLM model id:
+
+```bash
+$env:OPENAI_API_KEY = "sk-..."
+$env:PYTHONUTF8 = "1"  # recommended on Windows for LiteLLM cache reads
+python demo.py --model openai/gpt-4.1-mini
+```
+
+The code path is:
+
+```python
+from google.adk.models.lite_llm import LiteLlm
+
+agent = LlmAgent(name="nda_reviewer", model=LiteLlm(model="openai/gpt-4.1-mini"), ...)
+```
+
+To use real Gemini instead, swap the model and delete the script:
 
 ```python
 agent = LlmAgent(name="nda_reviewer", model="gemini-2.5-flash", ...)

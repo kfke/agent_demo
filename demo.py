@@ -10,8 +10,9 @@ Five scenarios. Watch which layer stops which one.
 from __future__ import annotations
 
 import asyncio
+import argparse
 import logging
-import sys
+import os
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -26,6 +27,7 @@ from ndaguard.scripted_llm import ScriptedLlm
 from ndaguard.tools import ALL_TOOLS
 
 APP = "nda_guard"
+DEFAULT_LIVE_MODEL = "openai/gpt-4.1-mini"
 
 SCENARIOS = [
     dict(
@@ -72,7 +74,32 @@ SCENARIOS = [
 ]
 
 
-async def run_one(sc: dict, scan_enabled: bool, policy_enabled: bool) -> None:
+def build_model(model_name: str, script: list[dict]) -> object:
+    if model_name == "scripted":
+        return ScriptedLlm(script=script)
+
+    if "/" not in model_name:
+        model_name = f"openai/{model_name}"
+
+    if model_name.startswith("openai/") and not os.environ.get("OPENAI_API_KEY"):
+        raise SystemExit(
+            "OPENAI_API_KEY is required for OpenAI models. "
+            "Example: $env:OPENAI_API_KEY='sk-...'; python demo.py --model openai/gpt-4.1-mini"
+        )
+
+    try:
+        from google.adk.models.lite_llm import LiteLlm
+    except ImportError as exc:
+        raise SystemExit(
+            "LiteLLM support is not installed. Run: pip install -r requirements.txt"
+        ) from exc
+
+    return LiteLlm(model=model_name)
+
+
+async def run_one(
+    sc: dict, scan_enabled: bool, policy_enabled: bool, model_name: str
+) -> None:
     print("\n" + "=" * 66)
     print(sc["name"])
     print("=" * 66)
@@ -81,7 +108,7 @@ async def run_one(sc: dict, scan_enabled: bool, policy_enabled: bool) -> None:
 
     agent = LlmAgent(
         name="nda_reviewer",
-        model=ScriptedLlm(script=sc["script"]),
+        model=build_model(model_name, sc["script"]),
         instruction="You review NDAs for the legal team.",
         tools=ALL_TOOLS,
     )
@@ -114,12 +141,34 @@ async def run_one(sc: dict, scan_enabled: bool, policy_enabled: bool) -> None:
 
 
 async def main() -> None:
-    scan = "--no-scan" not in sys.argv
-    policy = "--no-policy" not in sys.argv
+    parser = argparse.ArgumentParser(description="Run the NDA guardrail demo.")
+    parser.add_argument("--no-scan", action="store_true",
+                        help="disable model-layer content scanning")
+    parser.add_argument("--no-policy", action="store_true",
+                        help="disable orchestration-layer policy enforcement")
+    parser.add_argument(
+        "--model",
+        default="scripted",
+        help=(
+            "model to use: 'scripted' for deterministic local replay, or a LiteLLM "
+            f"model id such as {DEFAULT_LIVE_MODEL}"
+        ),
+    )
+    parser.add_argument(
+        "--openai",
+        action="store_true",
+        help=f"shortcut for --model {DEFAULT_LIVE_MODEL}",
+    )
+    args = parser.parse_args()
+
+    model_name = DEFAULT_LIVE_MODEL if args.openai else args.model
+    scan = not args.no_scan
+    policy = not args.no_policy
     print(f"model layer  (content scan): {'ON' if scan else 'OFF'}")
     print(f"orchestration layer (policy): {'ON' if policy else 'OFF'}")
+    print(f"llm backend: {model_name}")
     for sc in SCENARIOS:
-        await run_one(sc, scan, policy)
+        await run_one(sc, scan, policy, model_name)
     print("\n" + "-" * 66)
     denials = [a for a in AUDIT if a.get("effect") in ("deny", "block", "redact")]
     print(f"{len(AUDIT)} audit rows, {len(denials)} enforcement actions")

@@ -60,12 +60,15 @@ pip install -r requirements.txt
 python demo.py                # both layers on
 python demo.py --no-scan      # model layer off  -> policy still holds
 python demo.py --no-policy    # policy off       -> scanner cannot save you
+python demo.py --openai       # live OpenAI through ADK LiteLLM
 
 python reliability_demo.py    # all eight; or pass R1..R8 to pick
 python -m pytest -q           # 33 assertions, ~0.1s
 ```
 
-No API key needed. Verified on `google-adk==2.8.0`, Python 3.13.3.
+No API key needed for the default scripted run. Live OpenAI runs use ADK's
+`google.adk.models.lite_llm.LiteLlm` wrapper and require `OPENAI_API_KEY`.
+Verified on `google-adk==2.8.0`, Python 3.13.3.
 `reliability_demo.py` imports no ADK at all.
 
 ## Conventions to preserve

@@ -1,3 +1,4 @@
 google-adk==2.8.0
+litellm>=1.84
 PyYAML>=6.0
 pytest>=8.0
